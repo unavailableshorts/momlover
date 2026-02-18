@@ -14,7 +14,7 @@ function signToken(payload) {
 
 export default async function handler(req, res) {
 
-  res.setHeader("Access-Control-Allow-Origin", "https://YOURBLOG.blogspot.com");
+  res.setHeader("Access-Control-Allow-Origin", "https://momswapped.blogspot.com");
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -50,3 +50,4 @@ export default async function handler(req, res) {
 
   return res.status(200).json({ success: true });
 }
+
