@@ -217,8 +217,8 @@ export default async function handler(req, res) {
         originalThumbName
       } = req.body;
 
-      const videoPath = `videos/${originalVideoName}.mp4`;
-      const thumbPath = `thumbnails/${originalThumbName}.jpg`;
+      const videoPath = `videos/${postUrl}${originalVideoName}`;
+      const thumbPath = `thumbnails/${postUrl}${originalThumbName}`;
 
       const videoUrl = await uploadToGitHub(videoPath, videoBase64);
       const thumbUrl = await uploadToGitHub(thumbPath, thumbnailBase64);
