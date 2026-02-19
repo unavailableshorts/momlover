@@ -33,7 +33,7 @@ async function uploadToGitHub(path, base64Content) {
     headers: { Authorization: `Bearer ${GITHUB_TOKEN}`, "Content-Type": "application/json" },
     body: JSON.stringify({ message: `Upload ${path}`, content: base64Content })
   });
-  if (!res.ok) throw new Error("GitHub upload failed");
+  if (!res.ok) throw new Error("GitHub upload failed. Check if file is too large (>20MB) or path is invalid.");
   return `https://raw.githubusercontent.com/${GITHUB_USERNAME}/${GITHUB_REPO}/main/${path}`;
 }
 
@@ -55,7 +55,7 @@ async function safeDeleteGitHub(path) {
 // --- MAIN HANDLER ---
 export default async function handler(req, res) {
   const origin = req.headers.origin;
-  if (origin && new URL(origin).hostname !== ALLOWED_DOMAIN) return res.status(403).json({ error: "Forbidden" });
+  if (origin && new URL(origin).hostname !== ALLOWED_DOMAIN) return res.status(403).json({ error: "Forbidden Domain" });
 
   res.setHeader("Access-Control-Allow-Origin", origin || "*");
   res.setHeader("Access-Control-Allow-Credentials", "true");
@@ -67,21 +67,16 @@ export default async function handler(req, res) {
   const action = req.query.action;
   if (action === "login") {
     const { username, password } = req.body;
-    if (username !== ADMIN_USERNAME || password !== ADMIN_PASSWORD) return res.status(401).json({ error: "Invalid" });
+    if (username !== ADMIN_USERNAME || password !== ADMIN_PASSWORD) return res.status(401).json({ error: "Invalid Credentials" });
     const token = signSession(username);
     res.setHeader("Set-Cookie", `session=${token}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=${SESSION_DURATION / 1000}`);
-    return res.status(200).json({ success: true });
-  }
-
-  if (action === "logout") {
-    res.setHeader("Set-Cookie", "session=; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=0");
     return res.status(200).json({ success: true });
   }
 
   const cookie = req.headers.cookie;
   const match = cookie ? cookie.match(/session=([^;]+)/) : null;
   const session = match ? verifySession(match[1]) : null;
-  if (!session) return res.status(401).json({ error: "Unauthorized" });
+  if (!session) return res.status(401).json({ error: "Unauthorized Access" });
 
   try {
     if (req.method === "GET") {
@@ -91,22 +86,22 @@ export default async function handler(req, res) {
 
     if (req.method === "POST") {
       const { title, postUrl, labels, author, videoBase64, thumbnailBase64, vName, tName } = req.body;
+      
+      // Preserving original names with slug prefix for uniqueness
       const vUrl = await uploadToGitHub(`videos/${vName}`, videoBase64);
       const tUrl = await uploadToGitHub(`thumbnails/${tName}`, thumbnailBase64);
 
-      // Matches your Sheet headers exactly
       await fetch(`${GOOGLE_SCRIPT_URL}?key=${GOOGLE_SECRET_KEY}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
-          title: title, 
-          postUrl: postUrl,
-          url: postlink,
+          title, 
+          postUrl, 
           videoLink: vUrl, 
           featureImage: tUrl, 
-          labels: labels, 
+          labels, 
           published: new Date().toISOString(), 
-          author: author 
+          author 
         })
       });
       return res.status(200).json({ success: true });
