@@ -107,12 +107,43 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true });
     }
 
-    // UPDATE
+// UPDATE
     if (req.method === "PUT") {
+      const { 
+        rowIndex, title, postUrl, url, labels, author,
+        videoLink, featureImage, // These are the existing text URLs
+        videoBase64, originalVideoName, oldVideoPath, // New video data (if checkbox checked)
+        thumbnailBase64, originalThumbName, oldThumbPath // New thumb data (if checkbox checked)
+      } = req.body;
+
+      let finalVideoUrl = videoLink;
+      let finalThumbUrl = featureImage;
+
+      // 1. If user checked "Upload New Video"
+      if (videoBase64) {
+        const newVPath = `videos/${postUrl}-${originalVideoName}`;
+        finalVideoUrl = await uploadToGitHub(newVPath, videoBase64);
+        if (oldVideoPath) await safeDeleteGitHub(oldVideoPath); // Delete the old video from GitHub
+      }
+
+      // 2. If user checked "Upload New Thumbnail"
+      if (thumbnailBase64) {
+        const newTPath = `thumbnails/${postUrl}-${originalThumbName}`;
+        finalThumbUrl = await uploadToGitHub(newTPath, thumbnailBase64);
+        if (oldThumbPath) await safeDeleteGitHub(oldThumbPath); // Delete the old thumb from GitHub
+      }
+
+      // 3. Update Google Sheets
       await fetch(`${GOOGLE_SCRIPT_URL}?key=${GOOGLE_SECRET_KEY}&action=update`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(req.body)
+        method: "POST", 
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          rowIndex, title, postUrl, url, labels, author,
+          videoLink: finalVideoUrl, 
+          featureImage: finalThumbUrl 
+        })
       });
+
       return res.status(200).json({ success: true });
     }
 
