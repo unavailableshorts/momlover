@@ -121,14 +121,14 @@ export default async function handler(req, res) {
 
       // 1. If user checked "Upload New Video"
       if (videoBase64) {
-        const newVPath = `videos/${postUrl}-${originalVideoName}`;
+        const newVPath = `videos/${postUrl}-new-${originalVideoName}`;
         finalVideoUrl = await uploadToGitHub(newVPath, videoBase64);
         if (oldVideoPath) await safeDeleteGitHub(oldVideoPath); // Delete the old video from GitHub
       }
 
       // 2. If user checked "Upload New Thumbnail"
       if (thumbnailBase64) {
-        const newTPath = `thumbnails/${postUrl}-${originalThumbName}`;
+        const newTPath = `thumbnails/${postUrl}-new-${originalThumbName}`;
         finalThumbUrl = await uploadToGitHub(newTPath, thumbnailBase64);
         if (oldThumbPath) await safeDeleteGitHub(oldThumbPath); // Delete the old thumb from GitHub
       }
