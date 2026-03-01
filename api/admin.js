@@ -96,24 +96,26 @@ export default async function handler(req, res) {
 
     // CREATE
     if (req.method === "POST") {
-      const { title, postUrl, url, labels, author, videoBase64, originalVideoName, thumbnailBase64, originalThumbName } = req.body;
+      // FIXED: Added "published" to the destructuring
+      const { title, postUrl, url, labels, author, published, videoBase64, originalVideoName, thumbnailBase64, originalThumbName } = req.body;
       const vUrl = await uploadToGitHub(`videos/${postUrl}-${originalVideoName}`, videoBase64);
       const tUrl = await uploadToGitHub(`thumbnails/${postUrl}-${originalThumbName}`, thumbnailBase64);
 
       await fetch(`${GOOGLE_SCRIPT_URL}?key=${GOOGLE_SECRET_KEY}&action=create`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, postUrl, url, videoLink: vUrl, featureImage: tUrl, labels, author })
+        // FIXED: Passing "published" into the Google Sheet payload
+        body: JSON.stringify({ title, postUrl, url, videoLink: vUrl, featureImage: tUrl, labels, published, author })
       });
       return res.status(200).json({ success: true });
     }
 
-// UPDATE
+    // UPDATE
     if (req.method === "PUT") {
       const { 
-        rowIndex, title, postUrl, url, labels, author,
-        videoLink, featureImage, // These are the existing text URLs
-        videoBase64, originalVideoName, oldVideoPath, // New video data (if checkbox checked)
-        thumbnailBase64, originalThumbName, oldThumbPath // New thumb data (if checkbox checked)
+        rowIndex, title, postUrl, url, labels, author, published, // FIXED: Added "published"
+        videoLink, featureImage, 
+        videoBase64, originalVideoName, oldVideoPath, 
+        thumbnailBase64, originalThumbName, oldThumbPath 
       } = req.body;
 
       let finalVideoUrl = videoLink;
@@ -123,14 +125,14 @@ export default async function handler(req, res) {
       if (videoBase64) {
         const newVPath = `videos/${postUrl}-new-${originalVideoName}`;
         finalVideoUrl = await uploadToGitHub(newVPath, videoBase64);
-        if (oldVideoPath) await safeDeleteGitHub(oldVideoPath); // Delete the old video from GitHub
+        if (oldVideoPath) await safeDeleteGitHub(oldVideoPath); 
       }
 
       // 2. If user checked "Upload New Thumbnail"
       if (thumbnailBase64) {
         const newTPath = `thumbnails/${postUrl}-new-${originalThumbName}`;
         finalThumbUrl = await uploadToGitHub(newTPath, thumbnailBase64);
-        if (oldThumbPath) await safeDeleteGitHub(oldThumbPath); // Delete the old thumb from GitHub
+        if (oldThumbPath) await safeDeleteGitHub(oldThumbPath); 
       }
 
       // 3. Update Google Sheets
@@ -138,7 +140,7 @@ export default async function handler(req, res) {
         method: "POST", 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
-          rowIndex, title, postUrl, url, labels, author,
+          rowIndex, title, postUrl, url, labels, published, author, // FIXED: Added "published"
           videoLink: finalVideoUrl, 
           featureImage: finalThumbUrl 
         })
