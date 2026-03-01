@@ -30,9 +30,11 @@ export default async function handler(req, res) {
 
   setCorsHeaders(origin);
   
-  // NEW: Added 'sort' to the extracted query parameters (defaults to newest)
   const { action, page = 1, limit = 12, query = "", slug = "", sort = "newest" } = req.query;
 
+  // ==========================================
+  // VIEW COUNTER (DO NOT CACHE THIS!)
+  // ==========================================
   if (req.method === "POST" && action === "view") {
     const postSlug = req.body?.slug;
     if (postSlug) {
@@ -44,6 +46,11 @@ export default async function handler(req, res) {
     }
     return res.status(200).json({ success: true, message: "View counted" });
   }
+
+  // ==========================================
+  // 🚀 VERCEL EDGE CACHE ENGINE (60s)
+  // ==========================================
+  res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate");
 
   try {
     const response = await fetch(`${GOOGLE_SCRIPT_URL}?key=${GOOGLE_SECRET_KEY}`);
@@ -64,8 +71,7 @@ export default async function handler(req, res) {
     }
 
     // ==========================================
-    // 💎 NEW GLOBAL SORTING ENGINE 💎
-    // Vercel sorts the entire array BEFORE paginating!
+    // GLOBAL SORTING ENGINE
     // ==========================================
     if (sort === "popular") {
         posts.sort((a, b) => (Number(b.views) || 0) - (Number(a.views) || 0));
@@ -80,7 +86,9 @@ export default async function handler(req, res) {
     const limitNum = parseInt(limit);
     const startIndex = (pageNum - 1) * limitNum;
 
+    // ==========================================
     // ACTION: SEARCH
+    // ==========================================
     if (action === "search") {
       const lowerQuery = query.toLowerCase();
       const filtered = posts.filter(p => 
@@ -94,7 +102,9 @@ export default async function handler(req, res) {
       });
     }
 
+    // ==========================================
     // ACTION: GET SINGLE POST
+    // ==========================================
     if (action === "get_post") {
       const singlePost = posts.find(p => p.postUrl === slug);
       if (!singlePost) return res.status(404).json({ error: "Post not found" });
@@ -110,15 +120,17 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, post: singlePost, relatedPosts: related.slice(0, 3) });
     }
 
-    // ACTION: GET POPULAR (For the top featured widget - overrides standard limit)
+    // ==========================================
+    // ACTION: GET POPULAR (Featured Widget)
+    // ==========================================
     if (action === "get_popular") {
-      // By default, sorting engine already handled popular if requested, but we force slice(0,6) here for the widget
       const popular = [...posts].sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, 6);
       return res.status(200).json({ success: true, posts: popular });
     }
 
+    // ==========================================
     // ACTION: GET POSTS (DEFAULT GRID)
-    // Server securely slices only the 12 items needed for this specific page!
+    // ==========================================
     return res.status(200).json({
       success: true,
       page: pageNum,
