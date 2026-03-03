@@ -96,14 +96,17 @@ export default async function handler(req, res) {
 
     // CREATE
     if (req.method === "POST") {
-      // FIXED: Added "published" to the destructuring
-      const { title, postUrl, url, labels, author, published, videoBase64, originalVideoName, thumbnailBase64, originalThumbName } = req.body;
-      const vUrl = await uploadToGitHub(`videos/${postUrl}-${originalVideoName}`, videoBase64);
+      // 🔥 FIXED: We now receive 'videoLink' from Hugging Face instead of 'videoBase64'
+      const { title, postUrl, url, labels, author, published, videoLink, thumbnailBase64, originalThumbName } = req.body;
+      
+      // The video is already uploaded by Hugging Face, so we just use the link!
+      const vUrl = videoLink; 
+      
+      // We still upload the Thumbnail to GitHub via Vercel
       const tUrl = await uploadToGitHub(`thumbnails/${postUrl}-${originalThumbName}`, thumbnailBase64);
 
       await fetch(`${GOOGLE_SCRIPT_URL}?key=${GOOGLE_SECRET_KEY}&action=create`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        // FIXED: Passing "published" into the Google Sheet payload
         body: JSON.stringify({ title, postUrl, url, videoLink: vUrl, featureImage: tUrl, labels, published, author })
       });
       return res.status(200).json({ success: true });
@@ -112,19 +115,18 @@ export default async function handler(req, res) {
     // UPDATE
     if (req.method === "PUT") {
       const { 
-        rowIndex, title, postUrl, url, labels, author, published, // FIXED: Added "published"
+        rowIndex, title, postUrl, url, labels, author, published, 
         videoLink, featureImage, 
-        videoBase64, originalVideoName, oldVideoPath, 
+        newVideoLink, oldVideoPath, // 🔥 FIXED: Expecting newVideoLink from HF
         thumbnailBase64, originalThumbName, oldThumbPath 
       } = req.body;
 
       let finalVideoUrl = videoLink;
       let finalThumbUrl = featureImage;
 
-      // 1. If user checked "Upload New Video"
-      if (videoBase64) {
-        const newVPath = `videos/${postUrl}-new-${originalVideoName}`;
-        finalVideoUrl = await uploadToGitHub(newVPath, videoBase64);
+      // 1. If user uploaded a new video (Handled by Hugging Face)
+      if (newVideoLink) {
+        finalVideoUrl = newVideoLink; // Just apply the direct link
         if (oldVideoPath) await safeDeleteGitHub(oldVideoPath); 
       }
 
@@ -140,7 +142,7 @@ export default async function handler(req, res) {
         method: "POST", 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
-          rowIndex, title, postUrl, url, labels, published, author, // FIXED: Added "published"
+          rowIndex, title, postUrl, url, labels, published, author,
           videoLink: finalVideoUrl, 
           featureImage: finalThumbUrl 
         })
