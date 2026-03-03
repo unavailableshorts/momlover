@@ -56,7 +56,23 @@ export default async function handler(req, res) {
     const response = await fetch(`${GOOGLE_SCRIPT_URL}?key=${GOOGLE_SECRET_KEY}`);
     const data = await response.json();
     
-    let posts = data.posts || [];
+    let allPosts = data.posts || [];
+
+    // ==========================================
+    // 🛡️ PUBLIC VISIBILITY FILTER (CRITICAL)
+    // ==========================================
+    const now = new Date();
+    let posts = allPosts.filter(p => {
+      // 1. Check for hidden Draft label or status
+      const isDraft = (p.labels || "").toLowerCase().includes("_draft") || p.status === "draft";
+      
+      // 2. Check if the publish date is in the future
+      const pubDate = new Date(p.published || p.timestamp || 0);
+      const isFuture = pubDate > now;
+
+      // Only return true if it's NOT a draft and NOT scheduled for the future
+      return !isDraft && !isFuture;
+    });
 
     // ==========================================
     // ACTION: GET LABELS 
@@ -64,10 +80,14 @@ export default async function handler(req, res) {
     if (action === "get_labels") {
       const labelsSet = new Set();
       posts.forEach(p => {
-        if (p.labels) p.labels.split(",").forEach(l => labelsSet.add(l.trim()));
+        if (p.labels) {
+          p.labels.split(",")
+            .map(l => l.trim())
+            .filter(l => l !== "" && l !== "_draft") // Don't show draft tag in category list
+            .forEach(l => labelsSet.add(l));
+        }
       });
-      const uniqueLabels = Array.from(labelsSet).filter(l => l !== "");
-      return res.status(200).json({ success: true, labels: uniqueLabels });
+      return res.status(200).json({ success: true, labels: Array.from(labelsSet) });
     }
 
     // ==========================================
@@ -78,7 +98,6 @@ export default async function handler(req, res) {
     } else if (sort === "oldest") {
         posts.sort((a, b) => new Date(a.published || a.timestamp || 0) - new Date(b.published || b.timestamp || 0));
     } else {
-        // Default: Newest first
         posts.sort((a, b) => new Date(b.published || b.timestamp || 0) - new Date(a.published || a.timestamp || 0));
     }
 
@@ -124,7 +143,7 @@ export default async function handler(req, res) {
     // ACTION: GET POPULAR (Featured Widget)
     // ==========================================
     if (action === "get_popular") {
-      const popular = [...posts].sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, 6);
+      const popular = [...posts].sort((a, b) => (Number(b.views) || 0) - (Number(a.views) || 0)).slice(0, 6);
       return res.status(200).json({ success: true, posts: popular });
     }
 
