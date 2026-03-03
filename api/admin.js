@@ -54,7 +54,6 @@ export default async function handler(req, res) {
   const action = req.query.action;
   const origin = req.headers.origin;
 
-  // STRONG ORIGIN LOCK
   if (!origin || new URL(origin).hostname !== ALLOWED_DOMAIN) {
     return res.status(403).json({ error: "Forbidden: Invalid Origin" });
   }
@@ -66,7 +65,6 @@ export default async function handler(req, res) {
 
   if (req.method === "OPTIONS") return res.status(200).end();
 
-  // LOGIN / LOGOUT
   if (action === "login") {
     const { username, password } = req.body;
     if (username !== ADMIN_USERNAME || password !== ADMIN_PASSWORD) return res.status(401).json({ error: "Invalid credentials" });
@@ -79,7 +77,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true });
   }
 
-  // SESSION CHECK
   const cookie = req.headers.cookie;
   if (!cookie) return res.status(401).json({ error: "No cookie" });
   const match = cookie.match(/session=([^;]+)/);
@@ -88,70 +85,67 @@ export default async function handler(req, res) {
   if (!session) return res.status(401).json({ error: "Session expired" });
 
   try {
-    // READ
     if (req.method === "GET") {
       const response = await fetch(`${GOOGLE_SCRIPT_URL}?key=${GOOGLE_SECRET_KEY}`);
       return res.status(200).json(await response.json());
     }
 
-    // CREATE
+    // --- CREATE POST ---
     if (req.method === "POST") {
-      // 🔥 FIXED: We now receive 'videoLink' from Hugging Face instead of 'videoBase64'
-      const { title, postUrl, url, labels, author, published, videoLink, thumbnailBase64, originalThumbName } = req.body;
+      // 🔥 UPDATED: Added 'status' to destructuring
+      const { title, postUrl, url, labels, author, published, videoLink, thumbnailBase64, originalThumbName, status } = req.body;
       
-      // The video is already uploaded by Hugging Face, so we just use the link!
       const vUrl = videoLink; 
-      
-      // We still upload the Thumbnail to GitHub via Vercel
       const tUrl = await uploadToGitHub(`thumbnails/${postUrl}-${originalThumbName}`, thumbnailBase64);
 
       await fetch(`${GOOGLE_SCRIPT_URL}?key=${GOOGLE_SECRET_KEY}&action=create`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, postUrl, url, videoLink: vUrl, featureImage: tUrl, labels, published, author })
+        // 🔥 UPDATED: Passing 'status' to Google Sheets
+        body: JSON.stringify({ title, postUrl, url, videoLink: vUrl, featureImage: tUrl, labels, published, author, status })
       });
       return res.status(200).json({ success: true });
     }
 
-    // UPDATE
+    // --- UPDATE POST ---
     if (req.method === "PUT") {
+      // 🔥 UPDATED: Added 'status' to destructuring
       const { 
         rowIndex, title, postUrl, url, labels, author, published, 
         videoLink, featureImage, 
-        newVideoLink, oldVideoPath, // 🔥 FIXED: Expecting newVideoLink from HF
-        thumbnailBase64, originalThumbName, oldThumbPath 
+        newVideoLink, oldVideoPath, 
+        thumbnailBase64, originalThumbName, oldThumbPath,
+        status 
       } = req.body;
 
       let finalVideoUrl = videoLink;
       let finalThumbUrl = featureImage;
 
-      // 1. If user uploaded a new video (Handled by Hugging Face)
       if (newVideoLink) {
-        finalVideoUrl = newVideoLink; // Just apply the direct link
+        finalVideoUrl = newVideoLink;
         if (oldVideoPath) await safeDeleteGitHub(oldVideoPath); 
       }
 
-      // 2. If user checked "Upload New Thumbnail"
       if (thumbnailBase64) {
         const newTPath = `thumbnails/${postUrl}-new-${originalThumbName}`;
         finalThumbUrl = await uploadToGitHub(newTPath, thumbnailBase64);
         if (oldThumbPath) await safeDeleteGitHub(oldThumbPath); 
       }
 
-      // 3. Update Google Sheets
       await fetch(`${GOOGLE_SCRIPT_URL}?key=${GOOGLE_SECRET_KEY}&action=update`, {
         method: "POST", 
         headers: { "Content-Type": "application/json" },
+        // 🔥 UPDATED: Passing 'status' to Google Sheets
         body: JSON.stringify({ 
           rowIndex, title, postUrl, url, labels, published, author,
           videoLink: finalVideoUrl, 
-          featureImage: finalThumbUrl 
+          featureImage: finalThumbUrl,
+          status
         })
       });
 
       return res.status(200).json({ success: true });
     }
 
-    // DELETE
     if (req.method === "DELETE") {
       const { rowIndex, vPath, tPath } = req.body;
       if (vPath) await safeDeleteGitHub(vPath);
