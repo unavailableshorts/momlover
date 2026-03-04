@@ -85,14 +85,65 @@ export default async function handler(req, res) {
   if (!session) return res.status(401).json({ error: "Session expired" });
 
   try {
+    // --- 🔥 UPDATED GET BLOCK FOR PAGINATION ---
     if (req.method === "GET") {
       const response = await fetch(`${GOOGLE_SCRIPT_URL}?key=${GOOGLE_SECRET_KEY}`);
-      return res.status(200).json(await response.json());
+      const data = await response.json();
+      let posts = data.posts || [];
+
+      // Extract query parameters sent from Blogger
+      const { page = 1, limit = 20, query = "", sort = "newest" } = req.query;
+
+      // 1. Calculate Dashboard Stats BEFORE pagination/filtering
+      let totalViews = 0, highestViews = 0, topVideo = "-";
+      const labelsSet = new Set();
+      
+      posts.forEach(p => {
+        let v = parseInt(p.views) || 0;
+        totalViews += v;
+        if (v > highestViews) { highestViews = v; topVideo = p.title; }
+        if (p.labels) p.labels.split(',').forEach(l => labelsSet.add(l.trim().toLowerCase()));
+      });
+      const stats = { totalVideos: posts.length, totalViews, topVideo };
+      const tags = Array.from(labelsSet).filter(t => t !== "" && t !== "_draft");
+
+      // 2. Apply Search Filter
+      if (query) {
+        const q = query.toLowerCase();
+        posts = posts.filter(p => 
+          (p.title && p.title.toLowerCase().includes(q)) || 
+          (p.labels && p.labels.toLowerCase().includes(q))
+        );
+      }
+
+      // 3. Apply Sorting
+      if (sort === "popular") {
+        posts.sort((a, b) => (parseInt(b.views) || 0) - (parseInt(a.views) || 0));
+      } else if (sort === "oldest") {
+        posts.sort((a, b) => new Date(a.published || a.timestamp || 0) - new Date(b.published || b.timestamp || 0));
+      } else {
+        // newest (default)
+        posts.sort((a, b) => new Date(b.published || b.timestamp || 0) - new Date(a.published || a.timestamp || 0));
+      }
+
+      // 4. Server-Side Slicing (Pagination)
+      const pageNum = parseInt(page);
+      const limitNum = parseInt(limit);
+      const startIndex = (pageNum - 1) * limitNum;
+      const paginatedPosts = posts.slice(startIndex, startIndex + limitNum);
+
+      // 5. Send back the tiny, fast payload
+      return res.status(200).json({
+        posts: paginatedPosts,
+        totalPages: Math.ceil(posts.length / limitNum),
+        totalFound: posts.length,
+        stats: stats,
+        tags: tags
+      });
     }
 
     // --- CREATE POST ---
     if (req.method === "POST") {
-      // 🔥 UPDATED: Added 'status' to destructuring
       const { title, postUrl, url, labels, author, published, videoLink, thumbnailBase64, originalThumbName, status } = req.body;
       
       const vUrl = videoLink; 
@@ -100,7 +151,6 @@ export default async function handler(req, res) {
 
       await fetch(`${GOOGLE_SCRIPT_URL}?key=${GOOGLE_SECRET_KEY}&action=create`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        // 🔥 UPDATED: Passing 'status' to Google Sheets
         body: JSON.stringify({ title, postUrl, url, videoLink: vUrl, featureImage: tUrl, labels, published, author, status })
       });
       return res.status(200).json({ success: true });
@@ -108,7 +158,6 @@ export default async function handler(req, res) {
 
     // --- UPDATE POST ---
     if (req.method === "PUT") {
-      // 🔥 UPDATED: Added 'status' to destructuring
       const { 
         rowIndex, title, postUrl, url, labels, author, published, 
         videoLink, featureImage, 
@@ -134,7 +183,6 @@ export default async function handler(req, res) {
       await fetch(`${GOOGLE_SCRIPT_URL}?key=${GOOGLE_SECRET_KEY}&action=update`, {
         method: "POST", 
         headers: { "Content-Type": "application/json" },
-        // 🔥 UPDATED: Passing 'status' to Google Sheets
         body: JSON.stringify({ 
           rowIndex, title, postUrl, url, labels, published, author,
           videoLink: finalVideoUrl, 
