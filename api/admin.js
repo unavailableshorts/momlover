@@ -151,7 +151,7 @@ export default async function handler(req, res) {
 
       await fetch(`${GOOGLE_SCRIPT_URL}?key=${GOOGLE_SECRET_KEY}&action=create`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, postUrl, url, videoLink: vUrl, featureImage: tUrl, labels, published, author, status })
+        body: JSON.stringify({ title, postUrl, url, videoLink: vUrl, featureImage: tUrl, labels, published, author, status, videoTrailer  })
       });
       return res.status(200).json({ success: true });
     }
