@@ -197,78 +197,71 @@ export default async function handler(req, res) {
 
     if (req.method === "GET") {
 
-      const response = await fetch(
-        `${GOOGLE_SCRIPT_URL}?key=${GOOGLE_SECRET_KEY}`
-      );
+  const { page = 1, limit = 20, query = "", sort = "newest" } = req.query;
 
-      const data = await response.json();
+  const response = await fetch(
+    `${GOOGLE_SCRIPT_URL}?key=${GOOGLE_SECRET_KEY}&page=${page}&limit=${limit}`
+  );
 
-      let posts = data.posts || [];
+  const data = await response.json();
 
-      const { page = 1, limit = 20, query = "", sort = "newest" } = req.query;
+  let posts = data.posts || [];
 
-      let totalViews = 0;
-      let highestViews = 0;
-      let topVideo = "-";
+  let totalViews = 0;
+  let highestViews = 0;
+  let topVideo = "-";
 
-      const labelsSet = new Set();
+  const labelsSet = new Set();
 
-      posts.forEach(p => {
+  posts.forEach(p => {
 
-        const v = parseInt(p.views) || 0;
+    const v = parseInt(p.views) || 0;
 
-        totalViews += v;
+    totalViews += v;
 
-        if (v > highestViews) {
-          highestViews = v;
-          topVideo = p.title;
-        }
-
-        if (p.labels) {
-          p.labels.split(",").forEach(l => labelsSet.add(l.trim().toLowerCase()));
-        }
-
-      });
-
-      if (query) {
-
-        const q = query.toLowerCase();
-
-        posts = posts.filter(p =>
-          (p.title && p.title.toLowerCase().includes(q)) ||
-          (p.labels && p.labels.toLowerCase().includes(q))
-        );
-      }
-
-      if (sort === "popular") {
-        posts.sort((a, b) => (parseInt(b.views) || 0) - (parseInt(a.views) || 0));
-      }
-      else if (sort === "oldest") {
-        posts.sort((a, b) => new Date(a.published) - new Date(b.published));
-      }
-      else {
-        posts.sort((a, b) => new Date(b.published) - new Date(a.published));
-      }
-
-      const pageNum = parseInt(page);
-      const limitNum = parseInt(limit);
-
-      const startIndex = (pageNum - 1) * limitNum;
-
-      const paginatedPosts = posts.slice(startIndex, startIndex + limitNum);
-
-      return res.json({
-        posts: paginatedPosts,
-        totalPages: Math.ceil(posts.length / limitNum),
-        totalFound: posts.length,
-        stats: {
-          totalVideos: posts.length,
-          totalViews,
-          topVideo
-        },
-        tags: Array.from(labelsSet).filter(t => t !== "" && t !== "_draft")
-      });
+    if (v > highestViews) {
+      highestViews = v;
+      topVideo = p.title;
     }
+
+    if (p.labels) {
+      p.labels.split(",").forEach(l => labelsSet.add(l.trim().toLowerCase()));
+    }
+
+  });
+
+  if (query) {
+
+    const q = query.toLowerCase();
+
+    posts = posts.filter(p =>
+      (p.title && p.title.toLowerCase().includes(q)) ||
+      (p.labels && p.labels.toLowerCase().includes(q))
+    );
+  }
+
+  if (sort === "popular") {
+    posts.sort((a, b) => (parseInt(b.views) || 0) - (parseInt(a.views) || 0));
+  }
+  else if (sort === "oldest") {
+    posts.sort((a, b) => new Date(a.published) - new Date(b.published));
+  }
+  else {
+    posts.sort((a, b) => new Date(b.published) - new Date(a.published));
+  }
+
+  return res.json({
+    posts: posts,
+    totalPages: data.totalPages,
+    totalFound: data.totalFound,
+    stats: {
+      totalVideos: data.totalFound,
+      totalViews,
+      topVideo
+    },
+    tags: Array.from(labelsSet).filter(t => t !== "" && t !== "_draft")
+  });
+}
 
     /* ===============================
        CREATE POST
