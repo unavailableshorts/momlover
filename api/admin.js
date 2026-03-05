@@ -197,15 +197,49 @@ export default async function handler(req, res) {
 
     if (req.method === "GET") {
 
-  const { page = 1, limit = 20, query = "", sort = "newest" } = req.query;
+  const page = parseInt(req.query.page || 1);
+  const limit = parseInt(req.query.limit || 20);
+  const query = (req.query.query || "").toLowerCase();
+  const sort = req.query.sort || "newest";
 
   const response = await fetch(
-    `${GOOGLE_SCRIPT_URL}?key=${GOOGLE_SECRET_KEY}&page=${page}&limit=${limit}`
+    `${GOOGLE_SCRIPT_URL}?key=${GOOGLE_SECRET_KEY}`
   );
 
   const data = await response.json();
 
   let posts = data.posts || [];
+
+  /* -------------------------
+     SEARCH FILTER
+  ------------------------- */
+
+  if (query) {
+    posts = posts.filter(p =>
+      (p.title && p.title.toLowerCase().includes(query)) ||
+      (p.labels && p.labels.toLowerCase().includes(query))
+    );
+  }
+
+  /* -------------------------
+     SORTING
+  ------------------------- */
+
+  if (sort === "popular") {
+    posts.sort((a, b) => (parseInt(b.views) || 0) - (parseInt(a.views) || 0));
+  }
+
+  else if (sort === "oldest") {
+    posts.sort((a, b) => new Date(a.published) - new Date(b.published));
+  }
+
+  else {
+    posts.sort((a, b) => new Date(b.published) - new Date(a.published));
+  }
+
+  /* -------------------------
+     STATS CALCULATION
+  ------------------------- */
 
   let totalViews = 0;
   let highestViews = 0;
@@ -225,38 +259,41 @@ export default async function handler(req, res) {
     }
 
     if (p.labels) {
-      p.labels.split(",").forEach(l => labelsSet.add(l.trim().toLowerCase()));
+      p.labels.split(",").forEach(l =>
+        labelsSet.add(l.trim().toLowerCase())
+      );
     }
 
   });
 
-  if (query) {
+  /* -------------------------
+     PAGINATION
+  ------------------------- */
 
-    const q = query.toLowerCase();
+  const totalFound = posts.length;
+  const totalPages = Math.ceil(totalFound / limit);
 
-    posts = posts.filter(p =>
-      (p.title && p.title.toLowerCase().includes(q)) ||
-      (p.labels && p.labels.toLowerCase().includes(q))
-    );
-  }
+  const start = (page - 1) * limit;
+  const end = start + limit;
 
-  if (sort === "popular") {
-    posts.sort((a, b) => (parseInt(b.views) || 0) - (parseInt(a.views) || 0));
-  }
-  else if (sort === "oldest") {
-    posts.sort((a, b) => new Date(a.published) - new Date(b.published));
-  }
-  else {
-    posts.sort((a, b) => new Date(b.published) - new Date(a.published));
-  }
+  const paginatedPosts = posts.slice(start, end);
+
+  /* -------------------------
+     RESPONSE
+  ------------------------- */
 
   return res.json({
-    posts: posts,
-    totalPages: data.totalPages,
-    totalFound: data.totalFound,
-    stats: data.stats,
+    posts: paginatedPosts,
+    totalPages: totalPages,
+    totalFound: totalFound,
+    stats: {
+      totalVideos: totalFound,
+      totalViews: totalViews,
+      topVideo: topVideo
+    },
     tags: Array.from(labelsSet).filter(t => t !== "" && t !== "_draft")
   });
+
 }
 
     /* ===============================
