@@ -192,108 +192,34 @@ export default async function handler(req, res) {
   try {
 
     /* ===============================
-       FETCH POSTS (DASHBOARD)
-    ================================ */
-
-    if (req.method === "GET") {
-
-  const page = parseInt(req.query.page || 1);
-  const limit = parseInt(req.query.limit || 20);
-  const query = (req.query.query || "").toLowerCase();
+    FETCH POSTS (DASHBOARD) - FIXED
+================================ */
+if (req.method === "GET") {
+  const page = req.query.page || 1;
+  const limit = req.query.limit || 20;
+  const query = req.query.query || "";
   const sort = req.query.sort || "newest";
 
-  const response = await fetch(
-    `${GOOGLE_SCRIPT_URL}?key=${GOOGLE_SECRET_KEY}`
-  );
+  // FIX: Pass the parameters directly to Google Script so it can search the WHOLE sheet
+  const googleParams = new URLSearchParams({
+    key: GOOGLE_SECRET_KEY,
+    page: page,
+    limit: limit,
+    query: query,
+    sort: sort
+  });
 
+  const response = await fetch(`${GOOGLE_SCRIPT_URL}?${googleParams.toString()}`);
   const data = await response.json();
 
-  let posts = data.posts || [];
-
-  /* -------------------------
-     SEARCH FILTER
-  ------------------------- */
-
-  if (query) {
-    posts = posts.filter(p =>
-      (p.title && p.title.toLowerCase().includes(query)) ||
-      (p.labels && p.labels.toLowerCase().includes(query))
-    );
-  }
-
-  /* -------------------------
-     SORTING
-  ------------------------- */
-
-  if (sort === "popular") {
-    posts.sort((a, b) => (parseInt(b.views) || 0) - (parseInt(a.views) || 0));
-  }
-
-  else if (sort === "oldest") {
-    posts.sort((a, b) => new Date(a.published) - new Date(b.published));
-  }
-
-  else {
-    posts.sort((a, b) => new Date(b.published) - new Date(a.published));
-  }
-
-  /* -------------------------
-     STATS CALCULATION
-  ------------------------- */
-
-  let totalViews = 0;
-  let highestViews = 0;
-  let topVideo = "-";
-
-  const labelsSet = new Set();
-
-  posts.forEach(p => {
-
-    const v = parseInt(p.views) || 0;
-
-    totalViews += v;
-
-    if (v > highestViews) {
-      highestViews = v;
-      topVideo = p.title;
-    }
-
-    if (p.labels) {
-      p.labels.split(",").forEach(l =>
-        labelsSet.add(l.trim().toLowerCase())
-      );
-    }
-
-  });
-
-  /* -------------------------
-     PAGINATION
-  ------------------------- */
-
-  const totalFound = posts.length;
-  const totalPages = Math.ceil(totalFound / limit);
-
-  const start = (page - 1) * limit;
-  const end = start + limit;
-
-  const paginatedPosts = posts.slice(start, end);
-
-  /* -------------------------
-     RESPONSE
-  ------------------------- */
-
+  // Return the data exactly as Google processed it
   return res.json({
-    posts: paginatedPosts,
-    totalPages: totalPages,
-    totalFound: totalFound,
-    stats: {
-      totalVideos: totalFound,
-      totalViews: totalViews,
-      topVideo: topVideo
-    },
-    tags: Array.from(labelsSet).filter(t => t !== "" && t !== "_draft")
+    posts: data.posts || [],
+    totalPages: data.totalPages || 1,
+    totalFound: data.totalFound || 0,
+    stats: data.stats || {},
+    tags: data.tags || []
   });
-
 }
 
     /* ===============================
