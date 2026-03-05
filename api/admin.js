@@ -254,11 +254,7 @@ export default async function handler(req, res) {
     posts: posts,
     totalPages: data.totalPages,
     totalFound: data.totalFound,
-    stats: {
-      totalVideos: data.totalFound,
-      totalViews,
-      topVideo
-    },
+    stats: data.stats,
     tags: Array.from(labelsSet).filter(t => t !== "" && t !== "_draft")
   });
 }
