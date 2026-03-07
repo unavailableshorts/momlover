@@ -34,7 +34,7 @@ export default async function handler(req, res) {
 
   setCorsHeaders(origin);
   
-  const { action, page = 1, limit = 21, query = "", slug = "", sort = "newest" } = req.query;
+  const { action, page = 1, limit = 20, query = "", slug = "", sort = "newest" } = req.query;
 
   // 3. View Counter (POST)
   if (req.method === "POST" && action === "view") {
@@ -53,18 +53,14 @@ export default async function handler(req, res) {
   res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate");
 
   try {
-    // 🔥 FIX: If we are getting a single post, we need ALL posts to search through 
-    // and to generate related posts. We override the limit to 5000 here.
-    const isSinglePostRequest = action === "get_post";
-    const fetchLimit = isSinglePostRequest ? 5000 : limit;
-
+    // 🛠️ FIX 1: Ask Google Sheets for a massive batch so we have plenty of data to filter
     const googleParams = new URLSearchParams({
       key: GOOGLE_SECRET_KEY,
       action: action === "search" ? "search" : "read",
       query: query || "",
       sort: sort || "newest",
-      page: isSinglePostRequest ? 1 : page,
-      limit: fetchLimit
+      page: 1,      // Always pull from the beginning
+      limit: 2000   // Pull up to 2000 rows to ensure we don't run out after filtering
     });
 
     const response = await fetch(`${GOOGLE_SCRIPT_URL}?${googleParams.toString()}`);
@@ -72,7 +68,7 @@ export default async function handler(req, res) {
     
     let posts = data.posts || [];
 
-    // 5. Visibility Filter (Safety Layer)
+    // 🛠️ FIX 2: Run the Visibility Filter on the MASSIVE batch first
     const now = new Date();
     posts = posts.filter(p => {
       const isDraft = (p.labels || "").toLowerCase().includes("_draft") || p.status === "draft";
@@ -80,7 +76,7 @@ export default async function handler(req, res) {
       return !isDraft && pubDate <= now;
     });
 
-    // 6. Handle Specific Actions
+    // 6. Handle Single Post Requests
     if (action === "get_post") {
       const singlePost = posts.find(p => p.postUrl === slug);
       if (!singlePost) return res.status(404).json({ error: "Post not found" });
@@ -88,18 +84,26 @@ export default async function handler(req, res) {
       const postLabels = (singlePost.labels || "").split(",").map(l => l.trim().toLowerCase());
       const related = posts
         .filter(p => p.postUrl !== slug && (p.labels || "").split(",").some(l => postLabels.includes(l.trim().toLowerCase())))
-        .slice(0, 6); // Up to 6 related posts looks better on grid!
+        .slice(0, 6); 
       
       return res.status(200).json({ success: true, post: singlePost, relatedPosts: related });
     }
 
+    // 🛠️ FIX 3: Manually paginate inside Vercel AFTER filtering
+    const reqPage = parseInt(page) || 1;
+    const reqLimit = parseInt(limit) || 21;
+    const startIndex = (reqPage - 1) * reqLimit;
+    const endIndex = startIndex + reqLimit;
+    
+    const paginatedPosts = posts.slice(startIndex, endIndex);
+
     // Default Response (Grid)
     return res.status(200).json({
       success: true,
-      page: parseInt(page),
-      totalPages: data.totalPages || Math.ceil(posts.length / limit),
-      totalPosts: data.totalFound || posts.length,
-      posts: posts.slice(0, limit) // Ensure we only return the requested limit to the grid
+      page: reqPage,
+      totalPages: Math.ceil(posts.length / reqLimit), // Accurate total pages!
+      totalPosts: posts.length,                       // Accurate total posts!
+      posts: paginatedPosts                           // Will always equal your limit (20) unless you hit the end!
     });
 
   } catch (error) {
