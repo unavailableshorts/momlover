@@ -53,14 +53,18 @@ export default async function handler(req, res) {
   res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate");
 
   try {
-    // We pass parameters to Google so it filters the WHOLE sheet for search/sort
+    // 🔥 FIX: If we are getting a single post, we need ALL posts to search through 
+    // and to generate related posts. We override the limit to 5000 here.
+    const isSinglePostRequest = action === "get_post";
+    const fetchLimit = isSinglePostRequest ? 5000 : limit;
+
     const googleParams = new URLSearchParams({
       key: GOOGLE_SECRET_KEY,
       action: action === "search" ? "search" : "read",
       query: query || "",
       sort: sort || "newest",
-      page: page,
-      limit: limit
+      page: isSinglePostRequest ? 1 : page,
+      limit: fetchLimit
     });
 
     const response = await fetch(`${GOOGLE_SCRIPT_URL}?${googleParams.toString()}`);
@@ -84,7 +88,7 @@ export default async function handler(req, res) {
       const postLabels = (singlePost.labels || "").split(",").map(l => l.trim().toLowerCase());
       const related = posts
         .filter(p => p.postUrl !== slug && (p.labels || "").split(",").some(l => postLabels.includes(l.trim().toLowerCase())))
-        .slice(0, 3);
+        .slice(0, 6); // Up to 6 related posts looks better on grid!
       
       return res.status(200).json({ success: true, post: singlePost, relatedPosts: related });
     }
@@ -95,7 +99,7 @@ export default async function handler(req, res) {
       page: parseInt(page),
       totalPages: data.totalPages || Math.ceil(posts.length / limit),
       totalPosts: data.totalFound || posts.length,
-      posts: posts 
+      posts: posts.slice(0, limit) // Ensure we only return the requested limit to the grid
     });
 
   } catch (error) {
