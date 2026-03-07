@@ -5,11 +5,11 @@ const {
 } = process.env;
 
 export default async function handler(req, res) {
-  const origin = req.headers.origin || req.headers['x-forwarded-host'] || "";
+  const origin = req.headers.origin || req.headers['x-forwarded-host'];
 
   // 1. Set CORS Headers
   const setCorsHeaders = (allowedOrigin) => {
-    res.setHeader("Access-Control-Allow-Origin", allowedOrigin || "*");
+    res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   };
