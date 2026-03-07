@@ -34,7 +34,7 @@ export default async function handler(req, res) {
 
   setCorsHeaders(origin);
   
-  const { action, page = 1, limit = 12, query = "", slug = "", sort = "newest" } = req.query;
+  const { action, page = 1, limit = 21, query = "", slug = "", sort = "newest" } = req.query;
 
   // 3. View Counter (POST)
   if (req.method === "POST" && action === "view") {
