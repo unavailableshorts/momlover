@@ -36,17 +36,29 @@ export default async function handler(req, res) {
   
   const { action, page = 1, limit = 20, query = "", slug = "", sort = "newest" } = req.query;
 
-  // 3. View Counter (POST)
-  if (req.method === "POST" && action === "view") {
+ // 3. Analytics Counters (POST)
+  if (req.method === "POST") {
     const postSlug = req.body?.slug;
-    if (postSlug) {
+    
+    // View Counter
+    if (action === "view" && postSlug) {
       fetch(`${GOOGLE_SCRIPT_URL}?key=${GOOGLE_SECRET_KEY}&action=increment_view`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ slug: postSlug })
-      }).catch(e => console.log("Analytics ping failed"));
+      }).catch(e => console.log("View ping failed"));
+      return res.status(200).json({ success: true, message: "View counted" });
     }
-    return res.status(200).json({ success: true, message: "View counted" });
+
+    // Click Counter
+    if (action === "click" && postSlug) {
+      fetch(`${GOOGLE_SCRIPT_URL}?key=${GOOGLE_SECRET_KEY}&action=increment_click`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug: postSlug })
+      }).catch(e => console.log("Click ping failed"));
+      return res.status(200).json({ success: true, message: "Click counted" });
+    }
   }
 
   // 4. Data Fetching (GET)
