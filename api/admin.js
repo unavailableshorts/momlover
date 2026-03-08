@@ -131,21 +131,24 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  
+  // 🛠️ UPGRADE: Advanced Browser Security Headers
+  res.setHeader("X-Frame-Options", "DENY"); // Stops hackers from embedding your site
+  res.setHeader("X-Content-Type-Options", "nosniff"); // Stops MIME-sniffing attacks
+  res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains"); // Forces HTTPS securely
 
   if (req.method === "OPTIONS") return res.status(200).end();
-
+  
   /* ===============================
      LOGIN
   ================================ */
 
   if (action === "login") {
-
     const { username, password } = req.body;
 
-    if (
-      username !== ADMIN_USERNAME ||
-      password !== ADMIN_PASSWORD
-    ) {
+    if (username !== ADMIN_USERNAME || password !== ADMIN_PASSWORD) {
+      // 🛠️ UPGRADE: Artificial 2-second delay to destroy brute-force bots
+      await new Promise(resolve => setTimeout(resolve, 2000));
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
@@ -158,7 +161,7 @@ export default async function handler(req, res) {
 
     return res.json({ success: true });
   }
-
+  
   if (action === "logout") {
 
     res.setHeader(
