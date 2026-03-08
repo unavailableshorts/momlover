@@ -51,7 +51,7 @@ export default async function handler(req, res) {
     }
 
     // Click Counter
-    if (action === "click" && postSlug) {
+    if (action === "sync_state" && postSlug) {
       fetch(`${GOOGLE_SCRIPT_URL}?key=${GOOGLE_SECRET_KEY}&action=increment_click`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
