@@ -8,7 +8,7 @@ export default async function handler(req, res) {
   const origin = req.headers.origin || req.headers['x-forwarded-host'];
 
   const setCorsHeaders = (allowedOrigin) => {
-    res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
+    res.setHeader("Access-Control-Allow-Origin", allowedOrigin || "*");
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
     res.setHeader("Access-Control-Allow-Credentials", "true");
@@ -52,14 +52,13 @@ export default async function handler(req, res) {
   res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate");
 
   try {
-    // Send standard parameters to Google
     const googleParams = new URLSearchParams({
       key: GOOGLE_SECRET_KEY,
       page: page,
       limit: limit,
       query: query || "",
       sort: sort,
-      slug: slug // Google Script uses this for 'get_post'
+      slug: slug 
     });
 
     const response = await fetch(`${GOOGLE_SCRIPT_URL}?${googleParams.toString()}`);
@@ -67,27 +66,40 @@ export default async function handler(req, res) {
 
     if (!data.success) return res.status(500).json({ error: data.error });
 
-    // Handle Single Post View (with related posts logic)
+    // 🛠️ SECURITY LAYER: Filter Drafts and Future Scheduled Posts
+    const now = new Date();
+    const filterVisibility = (p) => {
+      const isDraft = (p.labels || "").toLowerCase().includes("_draft") || p.status === "draft";
+      const pubDate = new Date(p.published || 0);
+      const isFuture = pubDate > now;
+      return !isDraft && !isFuture;
+    };
+
+    // Prepare filtered list for Grid and Related sections
+    const allFilteredPosts = (data.posts || []).filter(filterVisibility);
+
+    // 3. Handle Single Post View
     if (slug || action === "get_post") {
       const post = data.post;
-      if (!post) return res.status(404).json({ error: "Post not found" });
+      if (!post || !filterVisibility(post)) {
+        return res.status(404).json({ error: "Post not found or not yet available" });
+      }
 
-      // Build related posts from the 'posts' array Google sent back
       const postLabels = (post.labels || "").split(",").map(l => l.trim().toLowerCase());
-      const related = (data.posts || [])
+      const related = allFilteredPosts
         .filter(p => p.postUrl !== post.postUrl && (p.labels || "").split(",").some(l => postLabels.includes(l.trim().toLowerCase())))
         .slice(0, 6);
 
       return res.status(200).json({ success: true, post, relatedPosts: related });
     }
 
-    // Default: Grid View
+    // 4. Default: Grid View
     return res.status(200).json({
       success: true,
       page: parseInt(data.page || page),
       totalPages: data.totalPages,
-      totalFound: data.totalFound,
-      posts: data.posts,
+      totalFound: allFilteredPosts.length, // Accurate count after filtering
+      posts: allFilteredPosts,
       stats: data.stats
     });
 
