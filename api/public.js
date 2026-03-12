@@ -54,6 +54,7 @@ export default async function handler(req, res) {
   try {
     const googleParams = new URLSearchParams({
       key: GOOGLE_SECRET_KEY,
+      action: action,
       page: page,
       limit: limit,
       query: query || "",
