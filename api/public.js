@@ -31,7 +31,7 @@ export default async function handler(req, res) {
 
   setCorsHeaders(origin);
   
-  const { action, page = 1, limit = 21, query = "", slug = "", sort = "newest" } = req.query;
+  const { action, page = 1, limit = 24, query = "", slug = "", sort = "newest" } = req.query;
 
   // 1. ANALYTICS (POST)
   if (req.method === "POST") {
@@ -98,7 +98,7 @@ export default async function handler(req, res) {
       success: true,
       page: parseInt(data.page || page),
       totalPages: data.totalPages,
-      totalFound: allFilteredPosts.length, // Accurate count after filtering
+      totalFound: data.totalFound, // Accurate count after filtering
       posts: allFilteredPosts,
       stats: data.stats
     });
