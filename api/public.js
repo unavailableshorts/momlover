@@ -67,6 +67,11 @@ export default async function handler(req, res) {
 
     if (!data.success) return res.status(500).json({ error: data.error });
 
+    // 🛠️ FIX FOR MODELS PAGE: Let the models data pass through!
+    if (action === "get_models") {
+      return res.status(200).json({ success: true, models: data.models });
+    }
+
     // 🛠️ SECURITY LAYER: Filter Drafts and Future Scheduled Posts
     const now = new Date();
     const filterVisibility = (p) => {
