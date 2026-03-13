@@ -113,11 +113,11 @@ export default async function handler(req, res) {
   if (!session) return res.status(401).json({ error: "Session expired" });
 
   try {
-    /* FETCH POSTS */
+    /* FETCH POSTS & MODELS */
     if (req.method === "GET") {
       const googleParams = new URLSearchParams({
         key: GOOGLE_SECRET_KEY,
-        action: action,
+        action: action, // 👈 ADDED THIS
         page: req.query.page || 1,
         limit: req.query.limit || 20,
         query: req.query.query || "",
@@ -125,6 +125,12 @@ export default async function handler(req, res) {
       });
       const response = await fetch(`${GOOGLE_SCRIPT_URL}?${googleParams.toString()}`);
       const data = await response.json();
+
+      // 🛠️ NEW: Let models pass through securely
+      if (action === "get_models") {
+         return res.json(data);
+      }
+
       return res.json({
         posts: data.posts || [], totalPages: data.totalPages || 1,
         totalFound: data.totalFound || 0, stats: data.stats || {}, tags: data.tags || []
