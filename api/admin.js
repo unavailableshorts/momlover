@@ -84,9 +84,6 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  res.setHeader("X-Frame-Options", "DENY");
-  res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
 
   if (req.method === "OPTIONS") return res.status(200).end();
 
@@ -128,52 +125,80 @@ export default async function handler(req, res) {
       const response = await fetch(`${GOOGLE_SCRIPT_URL}?${googleParams.toString()}`);
       const data = await response.json();
       return res.json({
-        posts: data.posts || [],
-        totalPages: data.totalPages || 1,
-        totalFound: data.totalFound || 0,
-        stats: data.stats || {},
-        tags: data.tags || []
+        posts: data.posts || [], totalPages: data.totalPages || 1,
+        totalFound: data.totalFound || 0, stats: data.stats || {}, tags: data.tags || []
       });
     }
 
-    /* CREATE POST (SMART LINK FIX) */
+    /* CREATE POST & MANAGE MODELS (POST) */
     if (req.method === "POST") {
+      const bodyAction = req.body.action;
+
+      // 🛠️ ADD MODEL (WITH GITHUB UPLOAD)
+      if (bodyAction === "add_model") {
+        const { name, img, imageBase64 } = req.body;
+        let finalImgUrl = img;
+
+        if (imageBase64) {
+          const cleanName = name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+          const imgPath = `models/${cleanName}-${Date.now()}.jpg`;
+          finalImgUrl = await uploadThumbnail(imgPath, imageBase64);
+        }
+
+        const gsRes = await fetch(`${GOOGLE_SCRIPT_URL}?key=${GOOGLE_SECRET_KEY}&action=add_model`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "add_model", name, img: finalImgUrl })
+        });
+        const gsData = await gsRes.json();
+        return res.json(gsData);
+      }
+
+      // 🛠️ DELETE MODEL (WITH GITHUB DELETE)
+      if (bodyAction === "delete_model") {
+        const { name, imgPath } = req.body;
+        
+        if (imgPath && imgPath.includes('githubusercontent.com')) {
+           const pathPart = imgPath.split('main/')[1];
+           if (pathPart) await deleteThumbnail(pathPart);
+        }
+
+        const gsRes = await fetch(`${GOOGLE_SCRIPT_URL}?key=${GOOGLE_SECRET_KEY}&action=delete_model`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "delete_model", name })
+        });
+        const gsData = await gsRes.json();
+        return res.json(gsData);
+      }
+
+      // --- STANDARD CREATE POST ---
       const { title, postUrl, url, labels, author, published, videoLink, videoTrailer, featureImage, thumbnailBase64, originalThumbName, isManualThumb, status } = req.body;
       
       let finalThumbUrl = featureImage;
-
-      // Only upload to GitHub if it's NOT a manual link
       if (!isManualThumb && thumbnailBase64) {
         const thumbPath = `thumbnails/${postUrl}-${originalThumbName}`;
         finalThumbUrl = await uploadThumbnail(thumbPath, thumbnailBase64);
       }
 
       await fetch(`${GOOGLE_SCRIPT_URL}?key=${GOOGLE_SECRET_KEY}&action=create`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, postUrl, url, videoLink, videoTrailer, featureImage: finalThumbUrl, labels, published, author, status })
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "create", title, postUrl, url, videoLink, videoTrailer, featureImage: finalThumbUrl, labels, published, author, status })
       });
-
       return res.json({ success: true });
     }
 
-    /* UPDATE POST (SMART LINK FIX) */
+    /* UPDATE POST */
     if (req.method === "PUT") {
       const { rowIndex, title, postUrl, url, labels, author, published, videoLink, videoTrailer, featureImage, thumbnailBase64, originalThumbName, oldThumbPath, status } = req.body;
-
       let finalThumb = featureImage;
       if (thumbnailBase64) {
         const newPath = `thumbnails/${postUrl}-${originalThumbName}`;
         finalThumb = await uploadThumbnail(newPath, thumbnailBase64);
         if (oldThumbPath) await deleteThumbnail(oldThumbPath);
       }
-
       await fetch(`${GOOGLE_SCRIPT_URL}?key=${GOOGLE_SECRET_KEY}&action=update`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rowIndex, title, postUrl, url, labels, videoLink, videoTrailer, featureImage: finalThumb, published, author, status })
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "update", rowIndex, title, postUrl, url, labels, videoLink, videoTrailer, featureImage: finalThumb, published, author, status })
       });
-
       return res.json({ success: true });
     }
 
@@ -182,9 +207,8 @@ export default async function handler(req, res) {
       const { rowIndex, tPath } = req.body;
       if (tPath) await deleteThumbnail(tPath);
       await fetch(`${GOOGLE_SCRIPT_URL}?key=${GOOGLE_SECRET_KEY}&action=delete`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rowIndex })
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete", rowIndex })
       });
       return res.json({ success: true });
     }
