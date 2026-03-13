@@ -117,6 +117,7 @@ export default async function handler(req, res) {
     if (req.method === "GET") {
       const googleParams = new URLSearchParams({
         key: GOOGLE_SECRET_KEY,
+        action: action,
         page: req.query.page || 1,
         limit: req.query.limit || 20,
         query: req.query.query || "",
