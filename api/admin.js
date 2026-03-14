@@ -140,7 +140,31 @@ export default async function handler(req, res) {
     /* CREATE POST & MANAGE MODELS (POST) */
     if (req.method === "POST") {
       const bodyAction = req.body.action;
-
+      
+      if (bodyAction === "s2s_image") {
+        const { imageUrl, folder, name } = req.body;
+        try {
+          // Fetch the image from the source URL
+          const imgRes = await fetch(imageUrl);
+          if (!imgRes.ok) throw new Error("Failed to download image from source.");
+          
+          // Convert to Base64
+          const arrayBuffer = await imgRes.arrayBuffer();
+          const base64Content = Buffer.from(arrayBuffer).toString("base64");
+          
+          // Generate File Path
+          const cleanName = (name || "upload").toLowerCase().replace(/[^a-z0-9]/g, '-');
+          const ext = imageUrl.split('.').pop().split(/[#?]/)[0] || 'jpg';
+          const safeExt = ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext.toLowerCase()) ? ext : 'jpg';
+          const path = `${folder}/${cleanName}-${Date.now()}.${safeExt}`;
+          
+          // Upload to GitHub
+          const githubUrl = await uploadThumbnail(path, base64Content);
+          return res.json({ success: true, url: githubUrl });
+        } catch (err) {
+          return res.status(500).json({ success: false, error: err.message });
+        }
+      }
       // 🛠️ ADD MODEL (WITH GITHUB UPLOAD)
       if (bodyAction === "add_model") {
         const { name, img, imageBase64 } = req.body;
