@@ -49,8 +49,10 @@ export default async function handler(req, res) {
   }
 
   // 2. DATA FETCHING (GET)
-  // Set CDN cache to a much shorter 15 seconds instead of 60
-  res.setHeader("Cache-Control", "public, s-maxage=15, stale-while-revalidate=30");
+  // 🔥 THE ULTIMATE CACHE KILLER: Forces Vercel CDN and Browser to fetch fresh data every single time.
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
 
   try {
     const googleParams = new URLSearchParams({
@@ -61,10 +63,9 @@ export default async function handler(req, res) {
       query: query || "",
       sort: sort,
       slug: slug,
-      t: Date.now() // 🚀 THE FIX: This forces Vercel to see a "new" URL every millisecond so it never gets stuck!
+      t: Date.now() // Bypass internal fetch cache
     });
 
-    // 🚀 THE FIX: Explicitly tell Node.js NOT to save the old memory
     const response = await fetch(`${GOOGLE_SCRIPT_URL}?${googleParams.toString()}`, {
       cache: 'no-store' 
     });
