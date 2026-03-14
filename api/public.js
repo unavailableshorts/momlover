@@ -48,8 +48,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // 2. DATA FETCHING (GET)
-  // 🔥 THE ULTIMATE CACHE KILLER: Forces Vercel CDN and Browser to fetch fresh data every single time.
+  // 2. DATA FETCHING (GET) - NO CACHE
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Expires", "0");
@@ -73,22 +72,21 @@ export default async function handler(req, res) {
 
     if (!data.success) return res.status(500).json({ error: data.error });
 
-    // 🛠️ FIX FOR MODELS PAGE: Let the models data pass through!
     if (action === "get_models") {
       return res.status(200).json({ success: true, models: data.models });
     }
 
- // 🛠️ SECURITY LAYER: Filter Drafts and TRUE Future Posts (Timezone Proof)
-    const now = new Date();
-    // Add a 24-hour buffer to Vercel's clock to fix the India (IST) timezone difference
-    const bufferTime = new Date(now.getTime() + (24 * 60 * 60 * 1000)); 
-
+    // 🛠️ SECURITY LAYER: FIXED FOR INDIA (IST) TIMEZONE
     const filterVisibility = (p) => {
       const isDraft = (p.labels || "").toLowerCase().includes("_draft") || p.status === "draft";
+      
+      // We give Vercel a 24-hour buffer so it stops hiding "Today's" posts
+      const now = new Date();
+      const bufferTime = new Date(now.getTime() + (24 * 60 * 60 * 1000));
       const pubDate = new Date(p.published || 0);
       
-      // It is only a "future" post if it is scheduled for MORE than 24 hours from now
-      const isFuture = pubDate > bufferTime; 
+      // Only hide if it is scheduled for TOMORROW or later
+      const isFuture = pubDate > bufferTime;
       
       return !isDraft && !isFuture;
     };
@@ -116,7 +114,7 @@ export default async function handler(req, res) {
       success: true,
       page: parseInt(data.page || page),
       totalPages: data.totalPages,
-      totalFound: data.totalFound, // Accurate count after filtering
+      totalFound: data.totalFound,
       posts: allFilteredPosts,
       stats: data.stats
     });
