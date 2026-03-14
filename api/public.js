@@ -78,12 +78,19 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, models: data.models });
     }
 
-    // 🛠️ SECURITY LAYER: Filter Drafts and Future Scheduled Posts
+ // 🛠️ SECURITY LAYER: Filter Drafts and TRUE Future Posts (Timezone Proof)
     const now = new Date();
+    // Add a 24-hour buffer to Vercel's clock to fix the India (IST) timezone difference
+    const bufferTime = new Date(now.getTime() + (24 * 60 * 60 * 1000)); 
+
     const filterVisibility = (p) => {
       const isDraft = (p.labels || "").toLowerCase().includes("_draft") || p.status === "draft";
-      // We removed the future time block so Vercel stops hiding your new videos!
-      return !isDraft; 
+      const pubDate = new Date(p.published || 0);
+      
+      // It is only a "future" post if it is scheduled for MORE than 24 hours from now
+      const isFuture = pubDate > bufferTime; 
+      
+      return !isDraft && !isFuture;
     };
 
     // Prepare filtered list for Grid and Related sections
