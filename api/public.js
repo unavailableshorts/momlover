@@ -49,7 +49,7 @@ export default async function handler(req, res) {
   }
 
   // 2. DATA FETCHING (GET)
-  res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate");
+  res.setHeader("Cache-Control", "s-maxage=60");
 
   try {
     const googleParams = new URLSearchParams({
