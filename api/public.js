@@ -82,9 +82,8 @@ export default async function handler(req, res) {
     const now = new Date();
     const filterVisibility = (p) => {
       const isDraft = (p.labels || "").toLowerCase().includes("_draft") || p.status === "draft";
-      const pubDate = new Date(p.published || 0);
-      const isFuture = pubDate > now;
-      return !isDraft && !isFuture;
+      // We removed the future time block so Vercel stops hiding your new videos!
+      return !isDraft; 
     };
 
     // Prepare filtered list for Grid and Related sections
