@@ -8,7 +8,7 @@ export default async function handler(req, res) {
   const origin = req.headers.origin || req.headers['x-forwarded-host'];
 
   const setCorsHeaders = (allowedOrigin) => {
-    res.setHeader("Access-Control-Allow-Origin", allowedOrigin || "*");
+    res.setHeader("Access-Control-Allow-Origin", allowedOrigin || "momlover.vercel.app");
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
     res.setHeader("Access-Control-Allow-Credentials", "true");
