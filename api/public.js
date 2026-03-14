@@ -105,7 +105,7 @@ export default async function handler(req, res) {
       page: parseInt(data.page || page),
       totalPages: data.totalPages,
       totalFound: data.totalFound, // Accurate count after filtering
-      posts: allFilteredPosts,
+      posts: data.posts,
       stats: data.stats
     });
 
