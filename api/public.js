@@ -76,20 +76,21 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, models: data.models });
     }
 
-    // 🛠️ SECURITY LAYER: FIXED FOR INDIA (IST) TIMEZONE
-    const filterVisibility = (p) => {
-      const isDraft = (p.labels || "").toLowerCase().includes("_draft") || p.status === "draft";
-      
-      // We give Vercel a 24-hour buffer so it stops hiding "Today's" posts
-      const now = new Date();
-      const bufferTime = new Date(now.getTime() + (24 * 60 * 60 * 1000));
-      const pubDate = new Date(p.published || 0);
-      
-      // Only hide if it is scheduled for TOMORROW or later
-      const isFuture = pubDate > bufferTime;
-      
-      return !isDraft && !isFuture;
-    };
+    // 🛠️ SECURITY FILTER (Exact India IST Timezone Fix)
+    const now = new Date();
+    // Shift Google's clock forward by exactly 5.5 hours to match India Standard Time
+    const istTime = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
+    
+    if (!isAdmin) {
+      posts = posts.filter(p => {
+        const isDraft = (p.labels || "").includes("_draft") || p.status === "draft";
+        let pTime = new Date(p.published).getTime();
+        
+        // Compare the exact India time against the post time
+        const isFuture = !isNaN(pTime) && pTime > istTime.getTime();
+        return !isDraft && !isFuture;
+      });
+    }
 
     // Prepare filtered list for Grid and Related sections
     const allFilteredPosts = (data.posts || []).filter(filterVisibility);
