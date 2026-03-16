@@ -76,21 +76,20 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, models: data.models });
     }
 
-    // 🛠️ SECURITY FILTER (Exact India IST Timezone Fix)
-    const now = new Date();
-    // Shift Google's clock forward by exactly 5.5 hours to match India Standard Time
-    const istTime = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
-    
-    if (!isAdmin) {
-      posts = posts.filter(p => {
-        const isDraft = (p.labels || "").includes("_draft") || p.status === "draft";
-        let pTime = new Date(p.published).getTime();
-        
-        // Compare the exact India time against the post time
-        const isFuture = !isNaN(pTime) && pTime > istTime.getTime();
-        return !isDraft && !isFuture;
-      });
-    }
+    // 🛠️ VERCEL SECURITY FILTER (Exact India IST Timezone Fix)
+    const filterVisibility = (p) => {
+      const isDraft = (p.labels || "").toLowerCase().includes("_draft") || p.status === "draft";
+      
+      // Shift Vercel's UTC clock forward by exactly 5.5 hours to match India Standard Time
+      const now = new Date();
+      const istTime = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
+      const pubDate = new Date(p.published || 0);
+      
+      // Now it perfectly compares your local IST time against the post time
+      const isFuture = pubDate.getTime() > istTime.getTime();
+      
+      return !isDraft && !isFuture;
+    };
 
     // Prepare filtered list for Grid and Related sections
     const allFilteredPosts = (data.posts || []).filter(filterVisibility);
