@@ -145,7 +145,13 @@ export default async function handler(req, res) {
         const { imageUrl, folder, name } = req.body;
         try {
           // Fetch the image from the source URL
-          const imgRes = await fetch(imageUrl);
+const imgRes = await fetch(imageUrl, {
+  headers: {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Accept": "image/webp,image/apng,image/*,*/*;q=0.8",
+    "Referer": "https://google.com/"
+  }
+});
           if (!imgRes.ok) throw new Error("Failed to download image from source.");
           
           // Convert to Base64
