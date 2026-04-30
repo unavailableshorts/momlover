@@ -117,7 +117,7 @@ export default async function handler(req, res) {
     if (req.method === "GET") {
       const googleParams = new URLSearchParams({
         key: GOOGLE_SECRET_KEY,
-        action: action, // 👈 ADDED THIS
+        action: action, 
         page: req.query.page || 1,
         limit: req.query.limit || 20,
         query: req.query.query || "",
@@ -126,7 +126,6 @@ export default async function handler(req, res) {
       const response = await fetch(`${GOOGLE_SCRIPT_URL}?${googleParams.toString()}`);
       const data = await response.json();
 
-      // 🛠️ NEW: Let models pass through securely
       if (action === "get_models") {
          return res.json(data);
       }
@@ -144,34 +143,30 @@ export default async function handler(req, res) {
       if (bodyAction === "s2s_image") {
         const { imageUrl, folder, name } = req.body;
         try {
-          // Fetch the image from the source URL
-const imgRes = await fetch(imageUrl, {
-  headers: {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    "Accept": "image/webp,image/apng,image/*,*/*;q=0.8",
-    "Referer": "https://google.com/"
-  }
-});
+          const imgRes = await fetch(imageUrl, {
+            headers: {
+              "User-Agent": "Mozilla/5.0",
+              "Accept": "image/webp,image/apng,image/*,*/*;q=0.8",
+              "Referer": "https://google.com/"
+            }
+          });
           if (!imgRes.ok) throw new Error("Failed to download image from source.");
           
-          // Convert to Base64
           const arrayBuffer = await imgRes.arrayBuffer();
           const base64Content = Buffer.from(arrayBuffer).toString("base64");
           
-          // Generate File Path
           const cleanName = (name || "upload").toLowerCase().replace(/[^a-z0-9]/g, '-');
           const ext = imageUrl.split('.').pop().split(/[#?]/)[0] || 'jpg';
           const safeExt = ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext.toLowerCase()) ? ext : 'jpg';
           const path = `${folder}/${cleanName}-${Date.now()}.${safeExt}`;
           
-          // Upload to GitHub
           const githubUrl = await uploadThumbnail(path, base64Content);
           return res.json({ success: true, url: githubUrl });
         } catch (err) {
           return res.status(500).json({ success: false, error: err.message });
         }
       }
-      // 🛠️ ADD MODEL (WITH GITHUB UPLOAD)
+      
       if (bodyAction === "add_model") {
         const { name, img, imageBase64 } = req.body;
         let finalImgUrl = img;
@@ -190,7 +185,6 @@ const imgRes = await fetch(imageUrl, {
         return res.json(gsData);
       }
 
-      // 🛠️ DELETE MODEL (WITH GITHUB DELETE)
       if (bodyAction === "delete_model") {
         const { name, imgPath } = req.body;
         
@@ -208,7 +202,8 @@ const imgRes = await fetch(imageUrl, {
       }
 
       // --- STANDARD CREATE POST ---
-      const { title, postUrl, url, labels, author, published, videoLink, videoTrailer, featureImage, thumbnailBase64, originalThumbName, isManualThumb, status } = req.body;
+      // 🔥 ADDED fullVideo to the destructuring here
+      const { title, postUrl, url, labels, author, published, videoLink, videoTrailer, fullVideo, featureImage, thumbnailBase64, originalThumbName, isManualThumb, status } = req.body;
       
       let finalThumbUrl = featureImage;
       if (!isManualThumb && thumbnailBase64) {
@@ -218,23 +213,28 @@ const imgRes = await fetch(imageUrl, {
 
       await fetch(`${GOOGLE_SCRIPT_URL}?key=${GOOGLE_SECRET_KEY}&action=create`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "create", title, postUrl, url, videoLink, videoTrailer, featureImage: finalThumbUrl, labels, published, author, status })
+        // 🔥 ADDED fullVideo to the JSON body sent to Google Sheets
+        body: JSON.stringify({ action: "create", title, postUrl, url, videoLink, videoTrailer, fullVideo, featureImage: finalThumbUrl, labels, published, author, status })
       });
       return res.json({ success: true });
     }
 
     /* UPDATE POST */
     if (req.method === "PUT") {
-      const { rowIndex, title, postUrl, url, labels, author, published, videoLink, videoTrailer, featureImage, thumbnailBase64, originalThumbName, oldThumbPath, status } = req.body;
+      // 🔥 ADDED fullVideo to the destructuring here
+      const { rowIndex, title, postUrl, url, labels, author, published, videoLink, videoTrailer, fullVideo, featureImage, thumbnailBase64, originalThumbName, oldThumbPath, status } = req.body;
+      
       let finalThumb = featureImage;
       if (thumbnailBase64) {
         const newPath = `thumbnails/${postUrl}-${originalThumbName}`;
         finalThumb = await uploadThumbnail(newPath, thumbnailBase64);
         if (oldThumbPath) await deleteThumbnail(oldThumbPath);
       }
+      
       await fetch(`${GOOGLE_SCRIPT_URL}?key=${GOOGLE_SECRET_KEY}&action=update`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "update", rowIndex, title, postUrl, url, labels, videoLink, videoTrailer, featureImage: finalThumb, published, author, status })
+        // 🔥 ADDED fullVideo to the JSON body sent to Google Sheets
+        body: JSON.stringify({ action: "update", rowIndex, title, postUrl, url, labels, videoLink, videoTrailer, fullVideo, featureImage: finalThumb, published, author, status })
       });
       return res.json({ success: true });
     }
